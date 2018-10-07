@@ -28,15 +28,23 @@
   mov si, msg ; argument to print_string - string pointer in index register SI
   call print_string
 
-  ; examine content of video memory (the first 2 bytes: attribute+char)
+  ; examine content of video memory (each char+attr of the string)
 
   mov ax, video_mem ; text video memory address -> extra segment G
   mov gs, ax
-  mov bx, examined_char
-  mov ax, [gs:bx] ; load a word from video memory at offset 0x0000
-
+  mov cx, msg_len ; loop: for (cx = msg_len; cx > 0; cx--)
+print_video_mem_word:
+  ; bx - offset in video memory: offset = 2 * (msg_len - counter)
+  mov bx, msg_len
+  sub bx, cx
+  shl bx, 1 ; bx *= 2
+  mov ax, [gs:bx] ; load a word from video memory at given offset
   mov word [reg16], ax ; store argument for printreg16
+  push cx ; keep the counter on stack
   call printreg16
+  pop cx
+  dec cx
+  jnz print_video_mem_word
 
 hang:
   jmp hang ; end
@@ -115,9 +123,9 @@ hexloop:
 
 video_mem equ 0xb800
 stack equ 0x9c00 ; stack pointer: 0x7c00 + 0x2000
-examined_char equ 0x0000
 screen_width equ 80
 row_offset equ 2 * screen_width
+msg_len equ 20
 
 xpos db 0
 ypos db 0
