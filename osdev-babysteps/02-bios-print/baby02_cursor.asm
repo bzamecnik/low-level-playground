@@ -2,7 +2,9 @@
 ; Writing a string message using the BIOS calls.
 ; Set cursor to the beginning of the screen.
 
-; initialize the address of the message
+; Initialize the address of the message.
+; BIOS loads the boot sector at 0x07C0
+; More info: https://www.glamenv-septzen.net/en/view/6
   mov ax, 0x7C0
   mov ds, ax ; segment of the string
   mov si, msg ; offset of the string
