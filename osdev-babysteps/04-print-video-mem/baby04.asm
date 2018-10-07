@@ -7,7 +7,7 @@
 ; so it can be displayed -- so we can check register and memory values.
 ; A stack is included, but only used by call and ret.
 
-; There are two functions: "sprint" to print a string to video memory and
+; There are two functions: "print_string" to print a string to video memory and
 ; "printreg16" to format and two bytes from the video memory in hexadecimal.
 
 ; The cursor is represented by two variables: xpos, ypos.
@@ -18,21 +18,21 @@
   xor ax, ax ; maybe just "mov ax 0"? https://stackoverflow.com/questions/1135679/does-using-xor-reg-reg-give-advantage-over-mov-reg-0
   mov ds, ax ; data segment = 0 (for input string)
   mov ss, ax ; stack segment = 0
-  mov sp, 0x9c00 ; stack pointer: 0x7c00 + 0x2000
+  mov sp, stack; stack pointer
 
   cld ; clear direction flag (-> string goes up for lodsb)
 
-  mov ax, 0xb800 ; text video memory address -> extra segment E
+  mov ax, video_mem ; text video memory address -> extra segment E
   mov es, ax ; (can't set it directly)
 
-  mov si, msg ; argument to sprint - string pointer in index register SI
-  call sprint
+  mov si, msg ; argument to print_string - string pointer in index register SI
+  call print_string
 
   ; examine content of video memory (the first word)
 
-  mov ax, 0xb800 ; text video memory address -> extra segment G
+  mov ax, video_mem ; text video memory address -> extra segment G
   mov gs, ax
-  mov bx, 0x0000
+  mov bx, examined_char
   mov ax, [gs:bx] ; load a word from video memory at offset 0x0000
 
   mov word [reg16], ax ; store argument for printreg16
@@ -43,18 +43,19 @@ hang:
 
 ; --- string printing ---
 
-dochar: ; print one character and then continue to the rest of the string
-  call cprint
-sprint: ; print string
+print_string: ; print string
   lodsb ; load a byte from address ds:si to al
   cmp al, 0
-  jne dochar ; loop until we find a zero byte in the string
+  je print_crlf ; loop until we find a zero byte in the string
+  call print_char ; print one character and then continue to the rest of the string
+  jmp print_string
+print_crlf:
   ; finish with CR LF:
   add byte [ypos], 1 ; line feed - one row down
   mov byte [xpos], 0 ; carriage return - back to the first column
   ret
 
-cprint:
+print_char:
   ; al is set to the character byte
 
   ; https://wiki.osdev.org/Printing_To_Screen
@@ -63,7 +64,7 @@ cprint:
 
   movzx ax, byte [ypos] ; load 8-bit cursor row position to 16-bit ax
                         ; (pad upper byte with 0)
-  mov dx, 160 ; 2*80 (2 bytes per 80 columns)
+  mov dx, row_offset ; 2*80 (2 bytes per 80 columns)
   mul dx ; ax = ax * dx (offset = ypos * 2 * width)
 
   movzx bx, byte [xpos] ; cursor column position
@@ -105,19 +106,25 @@ hexloop:
   jnz hexloop ; continue if cx > 0
 
   ; print the formatted string
-  mov si, outstr16 ; argument to sprint
-  call sprint
+  mov si, outstr16 ; argument to print_string
+  call print_string
 
   ret
 
 ; --- data ---
+
+video_mem equ 0xb800
+stack equ 0x9c00 ; stack pointer: 0x7c00 + 0x2000
+examined_char equ 0x0000
+screen_width equ 80
+row_offset equ 2 * screen_width
 
 xpos db 0
 ypos db 0
 hexstr db '0123456789ABCDEF'
 outstr16 db '0000', 0 ; register value in hex as a string
 reg16 dw 0 ; input argument to printreg16, a word from a register
-msg db 'Hello, printing to video memory!', 0
+msg db 'Hello, video memory!', 0
 ; padding + boot sector signature
 times 510 - ($-$$) db 0
 db 0x55
